@@ -1,25 +1,25 @@
-ALTER VIEW TNKFU_KS AS -- äëÿ èçìåíåíèé
+ALTER VIEW TNKFU_KS AS -- для изменений
 
 
 WITH AmountCTE as /*
 
-			Áëîê Îñíîâíîé èíôîðìàöèè (
+			Блок Основной информации (
 
 */ (
 	SELECT 
-	s.IDSmetPos AS [ID] -- ID ñìåòíîé ïîçèöèè, äëÿ ñîðòèðîâêè
-	,s.NameSmetPos AS [Ñìåò.ï.] -- Ñìåòíàÿ ïîçèöèÿ
-	,w.NameWork AS [Íàèìåíîâàíèå ðàáîò]
-	,w.Unit AS [Åä.èçì.]
-	,ads.Amount AS [Êîë-âî ñìåòà]
-	,ads.Material_price AS [Öåíà ìàò.]
-	,ads.Work_price AS [Öåíà ðàá.]
-	,ISNULL(ads.Material_price,0)+ISNULL(ads.Work_price,0) AS [Åä öåíà]
-	,n.Íàêîïèòåëüíàÿ AS [Íàêîïèòåëüíàÿ]
-	,ISNULL(ads.Amount,0)-ISNULL(n.Íàêîïèòåëüíàÿ,0) AS [Îñòàòîê]
-	,s.IDInd1 AS [Èíäèêàòîð 1]
-	,s.IDInd2 AS [Èíäèêàòîð 2]
-	,s.IDInd3 AS [Èíäèêàòîð 3]
+	s.IDSmetPos AS [ID] -- ID сметной позиции, для сортировки
+	,s.NameSmetPos AS [Смет.п.] -- Сметная позиция
+	,w.NameWork AS [Наименование работ]
+	,w.Unit AS [Ед.изм.]
+	,ads.Amount AS [Кол-во смета]
+	,ads.Material_price AS [Цена мат.]
+	,ads.Work_price AS [Цена раб.]
+	,ISNULL(ads.Material_price,0)+ISNULL(ads.Work_price,0) AS [Ед цена]
+	,n.Накопительная AS [Накопительная]
+	,ISNULL(ads.Amount,0)-ISNULL(n.Накопительная,0) AS [Остаток]
+	,s.IDInd1 AS [Индикатор 1]
+	,s.IDInd2 AS [Индикатор 2]
+	,s.IDInd3 AS [Индикатор 3]
 
 	FROM Smeta s
 	
@@ -29,8 +29,8 @@ WITH AmountCTE as /*
 
 	LEFT JOIN (/*
 	
-					Îáúåì îòíîñèòåëüíî êàêîãî-òî êîíêðåòíîãî ÄC
-					SUM äëÿ íåñêîëüêèõ ÄÑ
+					Объем относительно какого-то конкретного ДC
+					SUM для нескольких ДС
 
 			*/
 				SELECT
@@ -45,12 +45,12 @@ WITH AmountCTE as /*
 				
 			LEFT JOIN (/*
 	
-					Íàêîïèòåëüíàÿ ïî âñåìó îáúåìó ÊÑ. Ñóììèðóþòñÿ òîëüêî îáúåìû, òî åñòü íå ïðèâÿçàíî ê ÄÑ
+					Накопительная по всему объему КС. Суммируются только объемы, то есть не привязано к ДС
 	
 			*/
 				SELECT
 				IDSmetPos,
-				SUM(Amount) [Íàêîïèòåëüíàÿ]
+				SUM(Amount) [Накопительная]
 				FROM Amount_KS
 				GROUP BY IDSmetPos
 				) n
@@ -58,32 +58,32 @@ WITH AmountCTE as /*
 				
 			/*
 	
-					Çíà÷åíèÿ èç ÐÄ ïî ôàéëàì
+					Значения из РД по файлам
 	
 			*/
 	),KSCTE AS ( -- 
 	SELECT 
 	IDSmetPos
-	,[1] as [ÊÑ-1] 
-	--- ,[2] as [ÊÑ-2]  è ò.ä.
+	,[1] as [КС-1] 
+	--- ,[2] as [КС-2]  и т.д.
 	FROM Amount_KS
 
-	PIVOT (SUM(Amount)  -- Pivot, äëÿ ðàçâîðîòà âñåõ îáúåìîâ èç òàáëèöû ïî ÊÑêàì (â ñòîëáöû)
-	FOR ID_KS IN ([1]/*,[2] è ò.ä.*/)) AS PivotTable
+	PIVOT (SUM(Amount)  -- Pivot, для разворота всех объемов из таблицы по КСкам (в столбцы)
+	FOR ID_KS IN ([1]/*,[2] и т.д.*/)) AS PivotTable
 	)
 
 
 SELECT 
-ROW_NUMBER() OVER(ORDER BY Acte.ID ASC) AS R#   -- Íîìåðà ñòðîê, äëÿ ñîðòèðîâêè â Power BI, òàê êàê òàì íå ïîääåðæèâàåòñÿ ñîðòèðîâêà ïî hierarchyid
+ROW_NUMBER() OVER(ORDER BY Acte.ID ASC) AS R#   -- Номера строк, для сортировки в Power BI, так как там не поддерживается сортировка по hierarchyid
 ,Acte.ID.ToString() AS ID
-,Acte.[Ñìåò.ï.]
-,Acte.[Íàèìåíîâàíèå ðàáîò]
-,Acte.[Íàêîïèòåëüíàÿ]
-,kscte.[ÊÑ-1]
--- ,kscte.[ÊÑ-2] è ò.ä.
-,Acte.[Èíäèêàòîð 1]
-,Acte.[Èíäèêàòîð 2]
-,Acte.[Èíäèêàòîð 3]
+,Acte.[Смет.п.]
+,Acte.[Наименование работ]
+,Acte.[Накопительная]
+,kscte.[КС-1]
+-- ,kscte.[КС-2] и т.д.
+,Acte.[Индикатор 1]
+,Acte.[Индикатор 2]
+,Acte.[Индикатор 3]
 
 FROM AmountCTE Acte
 LEFT JOIN KSCTE kscte ON Acte.ID=kscte.IDSmetPos
